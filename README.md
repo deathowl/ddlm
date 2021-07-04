@@ -23,3 +23,5 @@ command = "ddlm --target /usr/bin/sway"
 # in the `video` group.
 user = "greetd"
 ```
+# Demo
+![](assets/demo.gif)
