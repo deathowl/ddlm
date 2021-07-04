@@ -255,10 +255,6 @@ impl<'a> LoginManager<'a> {
                         } else {
                             self.draw_bg(&color::Color::new(0.75, 0.75, 0.25, 1.0))
                                 .expect("unable to draw background");
-                            if username == "exit" {
-                                self.greetd.cancel();
-                                return;
-                            }
                             let res = self.greetd.login(
                                 username,
                                 password,
