@@ -6,7 +6,6 @@ extern crate osstrtools;
 
 use std::io::Read;
 
-
 use framebuffer::{Framebuffer, KdMode};
 use structopt::StructOpt;
 use termion::raw::IntoRawMode;
@@ -19,9 +18,7 @@ mod color;
 mod draw;
 mod greetd;
 
-
-#[derive(StructOpt)]
-#[derive(Debug)]
+#[derive(StructOpt, Debug)]
 struct Opts {
     // The path to the file to read
     #[structopt(short, long, parse(from_os_str))]
@@ -43,7 +40,7 @@ struct LoginManager<'a> {
     dimensions: (u32, u32),
     mode: Mode,
     greetd: greetd::GreetD,
-    target: String
+    target: String,
 }
 
 impl<'a> LoginManager<'a> {
@@ -52,7 +49,7 @@ impl<'a> LoginManager<'a> {
         screen_size: (u32, u32),
         dimensions: (u32, u32),
         greetd: greetd::GreetD,
-        target: std::path::PathBuf
+        target: std::path::PathBuf,
     ) -> LoginManager {
         LoginManager {
             buf: buf,
@@ -62,7 +59,7 @@ impl<'a> LoginManager<'a> {
             dimensions,
             mode: Mode::EditingUsername,
             greetd: greetd,
-            target:target.into_os_string().into_string().unwrap(),
+            target: target.into_os_string().into_string().unwrap(),
         }
     }
 
@@ -219,7 +216,7 @@ impl<'a> LoginManager<'a> {
                     username.truncate(0);
                     password.truncate(0);
                     self.greetd.cancel();
-                    return
+                    return;
                 }
                 '\x7F' => match self.mode {
                     // backspace
@@ -255,11 +252,9 @@ impl<'a> LoginManager<'a> {
                         } else {
                             self.draw_bg(&color::Color::new(0.75, 0.75, 0.25, 1.0))
                                 .expect("unable to draw background");
-                            let res = self.greetd.login(
-                                username,
-                                password,
-                                vec![self.target.clone()],
-                            );
+                            let res =
+                                self.greetd
+                                    .login(username, password, vec![self.target.clone()]);
                             username = String::with_capacity(USERNAME_CAP);
                             password = String::with_capacity(PASSWORD_CAP);
                             match res {
@@ -301,7 +296,13 @@ fn main() {
     let greetd = greetd::GreetD::new();
     let args = Opts::from_args();
 
-    let mut lm = LoginManager::new(&mut framebuffer.frame, (w, h), (1024, 128), greetd, args.target);
+    let mut lm = LoginManager::new(
+        &mut framebuffer.frame,
+        (w, h),
+        (1024, 128),
+        greetd,
+        args.target,
+    );
 
     lm.clear();
     lm.draw_bg(&color::Color::new(0.75, 0.75, 0.75, 1.0))
