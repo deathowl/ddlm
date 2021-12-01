@@ -52,13 +52,13 @@ impl<'a> LoginManager<'a> {
         target: std::path::PathBuf,
     ) -> LoginManager {
         LoginManager {
-            buf: buf,
+            buf,
             headline_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 72.0),
             prompt_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 32.0),
             screen_size,
             dimensions,
             mode: Mode::EditingUsername,
-            greetd: greetd,
+            greetd,
             target: target.into_os_string().into_string().unwrap(),
         }
     }
@@ -81,7 +81,7 @@ impl<'a> LoginManager<'a> {
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut _buf = buf.subdimensions((x, y, self.dimensions.0, self.dimensions.1))?;
         let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
-        draw::draw_box(&mut _buf, &color, (self.dimensions.0, self.dimensions.1))?;
+        draw::draw_box(&mut _buf, color, (self.dimensions.0, self.dimensions.1))?;
 
         self.headline_font.auto_draw_text(
             &mut buf.offset(((self.screen_size.0 / 2) - 300, 32))?,
@@ -137,7 +137,7 @@ impl<'a> LoginManager<'a> {
             &mut buf,
             &bg,
             &color::Color::new(1.0, 1.0, 1.0, 1.0),
-            &format!("{}", username),
+            username,
         )?;
 
         Ok(())
@@ -191,7 +191,7 @@ impl<'a> LoginManager<'a> {
             let stdin = std::io::stdin();
             let mut stdin = stdin.lock();
             let mut b = [0x00];
-            if let Err(_) = stdin.read_exact(&mut b) {
+            if stdin.read_exact(&mut b).is_err() {
                 let _ =
                     Framebuffer::set_kd_mode(KdMode::Text).expect("unable to leave graphics mode");
                 username.truncate(0);
@@ -221,14 +221,10 @@ impl<'a> LoginManager<'a> {
                 '\x7F' => match self.mode {
                     // backspace
                     Mode::EditingUsername => {
-                        if username.len() > 0 {
-                            username.truncate(username.len() - 1);
-                        }
+                        username.pop();
                     }
                     Mode::EditingPassword => {
-                        if password.len() > 0 {
-                            password.truncate(password.len() - 1);
-                        }
+                        password.pop();
                     }
                 },
                 '\t' => match self.mode {
@@ -241,12 +237,12 @@ impl<'a> LoginManager<'a> {
                 },
                 '\r' => match self.mode {
                     Mode::EditingUsername => {
-                        if username.len() > 0 {
+                        if !username.is_empty() {
                             self.mode = Mode::EditingPassword;
                         }
                     }
                     Mode::EditingPassword => {
-                        if password.len() == 0 {
+                        if password.is_empty() {
                             username.truncate(0);
                             self.mode = Mode::EditingUsername;
                         } else {

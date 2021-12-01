@@ -29,7 +29,7 @@ impl GreetD {
             process::exit(1);
         }
         match UnixStream::connect(socket.unwrap()) {
-            Ok(stream) => GreetD { stream: stream },
+            Ok(stream) => GreetD { stream },
 
             Err(err) => {
                 eprintln!("{}", err);
@@ -44,12 +44,9 @@ impl GreetD {
         password: String,
         cmd: Vec<String>,
     ) -> Result<(), Box<dyn Error>> {
-        let _ = Request::CreateSession {
-            username: username.clone(),
-        }
-        .write_to(&mut self.stream);
+        let _ = Request::CreateSession { username }.write_to(&mut self.stream);
         let _ = Request::PostAuthMessageResponse {
-            response: Some(password.clone()),
+            response: Some(password),
         }
         .write_to(&mut self.stream);
         let response = Response::read_from(&mut self.stream)?;
@@ -59,36 +56,23 @@ impl GreetD {
                 auth_message_type,
             } => match auth_message_type {
                 AuthMessageType::Secret => {
-                    let _ = Request::StartSession { cmd: cmd.clone() }.write_to(&mut self.stream);
+                    let _ = Request::StartSession { cmd }.write_to(&mut self.stream);
                     let resp = Response::read_from(&mut self.stream)?;
                     match resp {
                         Response::Success => Ok(()),
-                        Response::Error {
-                            error_type: _,
-                            description: _,
-                        } => {
-                            return Err(Box::new(LoginError("Wrong username or password".into())));
-                        }
-                        Response::AuthMessage {
-                            auth_message: _,
-                            auth_message_type: _,
-                        } => {
-                            return Err(Box::new(LoginError("Wrong username or password".into())));
+                        Response::Error { .. } | Response::AuthMessage { .. } => {
+                            Err(Box::new(LoginError("Wrong username or password".into())))
                         }
                     }
                 }
-                _ => {
-                    return Err(Box::new(LoginError("Wrong username".into())));
-                }
+                _ => Err(Box::new(LoginError("Wrong username".into()))),
             },
             Response::Success => {
-                let _ = Request::StartSession { cmd: cmd.clone() }.write_to(&mut self.stream);
+                let _ = Request::StartSession { cmd }.write_to(&mut self.stream);
                 let _ = Response::read_from(&mut self.stream)?;
                 Ok(())
             }
-            _ => {
-                return Err(Box::new(LoginError("Unknown error".into())));
-            }
+            _ => Err(Box::new(LoginError("Unknown error".into()))),
         }
     }
 
