@@ -194,8 +194,8 @@ impl<'a> LoginManager<'a> {
             if stdin.read_exact(&mut b).is_err() {
                 let _ =
                     Framebuffer::set_kd_mode(KdMode::Text).expect("unable to leave graphics mode");
-                username.truncate(0);
-                password.truncate(0);
+                username.clear();
+                password.clear();
                 std::process::exit(1);
             }
 
@@ -208,13 +208,13 @@ impl<'a> LoginManager<'a> {
             match b[0] as char {
                 '\x15' | '\x0B' => match self.mode {
                     // ctrl-k/ctrl-u
-                    Mode::EditingUsername => username.truncate(0),
-                    Mode::EditingPassword => password.truncate(0),
+                    Mode::EditingUsername => username.clear(),
+                    Mode::EditingPassword => password.clear(),
                 },
                 '\x03' | '\x04' => {
                     // ctrl-c/ctrl-D
-                    username.truncate(0);
-                    password.truncate(0);
+                    username.clear();
+                    password.clear();
                     self.greetd.cancel();
                     return;
                 }
@@ -243,7 +243,7 @@ impl<'a> LoginManager<'a> {
                     }
                     Mode::EditingPassword => {
                         if password.is_empty() {
-                            username.truncate(0);
+                            username.clear();
                             self.mode = Mode::EditingUsername;
                         } else {
                             self.draw_bg(&color::Color::new(0.75, 0.75, 0.25, 1.0))
