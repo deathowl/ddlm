@@ -1,15 +1,32 @@
 use memmap::MmapMut;
+use thiserror::Error;
 
 use crate::color::Color;
 
+pub type Vect = (u32, u32);
+pub type Rect = (u32, u32, u32, u32);
+
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum BufferError {
+    #[error("cannot create subdimensions larger than buffer: {subdimensions:?} > {bounds:?}")]
+    SubdimensionsTooLarge { subdimensions: Rect, bounds: Rect },
+    #[error("cannot create offset outside buffer: {offset:?} > {bounds:?}")]
+    OffsetOutOfBounds { offset: Vect, bounds: Rect },
+    #[error("put({pos:?}) is not within subdimensions of buffer ({subdim:?})")]
+    PixelOutOfSubdimBounds { pos: Vect, subdim: Rect },
+    #[error("put({pos:?}) is not within dimensions of buffer ({dim:?})")]
+    PixelOutOfBounds { pos: Vect, dim: Vect },
+}
+
 pub struct Buffer<'a> {
     buf: &'a mut MmapMut,
-    dimensions: (u32, u32),
-    subdimensions: Option<(u32, u32, u32, u32)>,
+    dimensions: Vect,
+    subdimensions: Option<Rect>,
 }
 
 impl<'a> Buffer<'a> {
-    pub fn new(buf: &'a mut MmapMut, dimensions: (u32, u32)) -> Buffer {
+    pub fn new(buf: &'a mut MmapMut, dimensions: Vect) -> Buffer {
         Buffer {
             buf,
             dimensions,
@@ -17,7 +34,7 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    pub fn get_bounds(&self) -> (u32, u32, u32, u32) {
+    pub fn get_bounds(&self) -> Rect {
         if let Some(subdim) = self.subdimensions {
             subdim
         } else {
@@ -25,21 +42,15 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    pub fn subdimensions(
-        &mut self,
-        subdimensions: (u32, u32, u32, u32),
-    ) -> Result<Buffer, ::std::io::Error> {
+    pub fn subdimensions(&mut self, subdimensions: Rect) -> Result<Buffer, BufferError> {
         let bounds = self.get_bounds();
         if subdimensions.0 + subdimensions.2 >= bounds.2
             || subdimensions.1 + subdimensions.3 >= bounds.3
         {
-            return Err(::std::io::Error::new(
-                ::std::io::ErrorKind::Other,
-                format!(
-                    "cannot create subdimensions larger than buffer: {:?} > {:?}",
-                    subdimensions, bounds
-                ),
-            ));
+            return Err(BufferError::SubdimensionsTooLarge {
+                subdimensions,
+                bounds,
+            });
         }
 
         Ok(Buffer {
@@ -54,16 +65,10 @@ impl<'a> Buffer<'a> {
         })
     }
 
-    pub fn offset(&mut self, offset: (u32, u32)) -> Result<Buffer, ::std::io::Error> {
+    pub fn offset(&mut self, offset: Vect) -> Result<Buffer, BufferError> {
         let bounds = self.get_bounds();
         if offset.0 > bounds.2 || offset.1 > bounds.3 {
-            return Err(::std::io::Error::new(
-                ::std::io::ErrorKind::Other,
-                format!(
-                    "cannot create offset outside buffer: {:?} > {:?}",
-                    offset, bounds
-                ),
-            ));
+            return Err(BufferError::OffsetOutOfBounds { offset, bounds });
         }
 
         Ok(Buffer {
@@ -99,27 +104,18 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    pub fn put(&mut self, pos: (u32, u32), c: &Color) -> Result<(), ::std::io::Error> {
+    pub fn put(&mut self, pos: Vect, c: &Color) -> Result<(), BufferError> {
         let true_pos = if let Some(subdim) = self.subdimensions {
             if pos.0 >= subdim.2 || pos.1 >= subdim.3 {
-                return Err(::std::io::Error::new(
-                    ::std::io::ErrorKind::Other,
-                    format!(
-                        "put({:?}) is not within subdimensions of buffer ({:?})",
-                        pos, subdim
-                    ),
-                ));
+                return Err(BufferError::PixelOutOfSubdimBounds { pos, subdim });
             }
             (pos.0 + subdim.0, pos.1 + subdim.1)
         } else {
             if pos.0 >= self.dimensions.0 || pos.1 >= self.dimensions.1 {
-                return Err(::std::io::Error::new(
-                    ::std::io::ErrorKind::Other,
-                    format!(
-                        "put({:?}) is not within dimensions of buffer ({:?})",
-                        pos, self.dimensions
-                    ),
-                ));
+                return Err(BufferError::PixelOutOfBounds {
+                    pos,
+                    dim: self.dimensions,
+                });
             }
             pos
         };

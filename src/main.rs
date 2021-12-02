@@ -9,6 +9,7 @@ use std::io::Read;
 use framebuffer::{Framebuffer, KdMode, VarScreeninfo};
 use structopt::StructOpt;
 use termion::raw::IntoRawMode;
+use thiserror::Error;
 
 const USERNAME_CAP: usize = 64;
 const PASSWORD_CAP: usize = 64;
@@ -32,6 +33,17 @@ struct Opts {
 enum Mode {
     EditingUsername,
     EditingPassword,
+}
+
+#[derive(Error, Debug)]
+#[non_exhaustive]
+enum Error {
+    #[error("Error performing buffer operation: {0}")]
+    Buffer(#[from] buffer::BufferError),
+    #[error("Error performing draw operation: {0}")]
+    Draw(#[from] draw::DrawError),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 struct LoginManager<'a> {
@@ -98,7 +110,7 @@ impl<'a> LoginManager<'a> {
         )
     }
 
-    fn draw_bg(&mut self, color: &color::Color) -> Result<(), std::io::Error> {
+    fn draw_bg(&mut self, color: &color::Color) -> Result<(), Error> {
         let (x, y) = self.offset();
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut _buf = buf.subdimensions((x, y, self.dimensions.0, self.dimensions.1))?;
@@ -145,7 +157,7 @@ impl<'a> LoginManager<'a> {
         Ok(())
     }
 
-    fn draw_username(&mut self, username: &str, redraw: bool) -> Result<(), std::io::Error> {
+    fn draw_username(&mut self, username: &str, redraw: bool) -> Result<(), Error> {
         let (x, y) = self.offset();
         let (x, y) = (x + 416, y + 24);
         let dim = (self.dimensions.0 - 416 - 32, 32);
@@ -169,7 +181,7 @@ impl<'a> LoginManager<'a> {
         Ok(())
     }
 
-    fn draw_password(&mut self, password: &str, redraw: bool) -> Result<(), std::io::Error> {
+    fn draw_password(&mut self, password: &str, redraw: bool) -> Result<(), Error> {
         let (x, y) = self.offset();
         let (x, y) = (x + 416, y + 64);
         let dim = (self.dimensions.0 - 416 - 32, 32);
