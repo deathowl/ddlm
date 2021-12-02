@@ -1,4 +1,3 @@
-use memmap::MmapMut;
 use thiserror::Error;
 
 use crate::color::Color;
@@ -20,13 +19,13 @@ pub enum BufferError {
 }
 
 pub struct Buffer<'a> {
-    buf: &'a mut MmapMut,
+    buf: &'a mut [u8],
     dimensions: Vect,
     subdimensions: Option<Rect>,
 }
 
 impl<'a> Buffer<'a> {
-    pub fn new(buf: &'a mut MmapMut, dimensions: Vect) -> Self {
+    pub fn new(buf: &'a mut [u8], dimensions: Vect) -> Self {
         Self {
             buf,
             dimensions,

@@ -43,7 +43,7 @@ enum Error {
 }
 
 struct LoginManager<'a> {
-    buf: &'a mut memmap::MmapMut,
+    buf: &'a mut [u8],
     device: &'a std::fs::File,
 
     headline_font: draw::Font,
