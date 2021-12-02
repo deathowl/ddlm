@@ -6,12 +6,16 @@ extern crate osstrtools;
 
 use std::io::Read;
 
-use framebuffer::{Framebuffer, KdMode};
+use framebuffer::{Framebuffer, KdMode, VarScreeninfo};
 use structopt::StructOpt;
 use termion::raw::IntoRawMode;
 
 const USERNAME_CAP: usize = 64;
 const PASSWORD_CAP: usize = 64;
+
+// from linux/fb.h
+const FB_ACTIVATE_NOW: u32 = 0;
+const FB_ACTIVATE_FORCE: u32 = 128;
 
 mod buffer;
 mod color;
@@ -32,6 +36,7 @@ enum Mode {
 
 struct LoginManager<'a> {
     buf: &'a mut memmap::MmapMut,
+    device: &'a std::fs::File,
 
     headline_font: draw::Font,
     prompt_font: draw::Font,
@@ -41,18 +46,22 @@ struct LoginManager<'a> {
     mode: Mode,
     greetd: greetd::GreetD,
     target: String,
+
+    var_screen_info: &'a VarScreeninfo,
+    should_refresh: bool,
 }
 
 impl<'a> LoginManager<'a> {
     fn new(
-        buf: &mut memmap::MmapMut,
+        fb: &'a mut Framebuffer,
         screen_size: (u32, u32),
         dimensions: (u32, u32),
         greetd: greetd::GreetD,
         target: std::path::PathBuf,
     ) -> LoginManager {
         LoginManager {
-            buf,
+            buf: &mut fb.frame,
+            device: &fb.device,
             headline_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 72.0),
             prompt_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 32.0),
             screen_size,
@@ -60,13 +69,26 @@ impl<'a> LoginManager<'a> {
             mode: Mode::EditingUsername,
             greetd,
             target: target.into_os_string().into_string().unwrap(),
+            var_screen_info: &fb.var_screen_info,
+            should_refresh: false,
+        }
+    }
+
+    fn refresh(&mut self) {
+        if self.should_refresh {
+            self.should_refresh = false;
+            let mut screeninfo = self.var_screen_info.clone();
+            screeninfo.activate |= FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
+            Framebuffer::put_var_screeninfo(self.device, &screeninfo)
+                .expect("Failed to refresh framebuffer");
         }
     }
 
     fn clear(&mut self) {
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
-        buf.memset(&bg)
+        buf.memset(&bg);
+        self.should_refresh = true;
     }
 
     fn offset(&self) -> (u32, u32) {
@@ -118,6 +140,8 @@ impl<'a> LoginManager<'a> {
             "password:",
         )?;
 
+        self.should_refresh = true;
+
         Ok(())
     }
 
@@ -139,6 +163,8 @@ impl<'a> LoginManager<'a> {
             &color::Color::new(1.0, 1.0, 1.0, 1.0),
             username,
         )?;
+
+        self.should_refresh = true;
 
         Ok(())
     }
@@ -166,6 +192,8 @@ impl<'a> LoginManager<'a> {
             &color::Color::new(1.0, 1.0, 1.0, 1.0),
             &stars,
         )?;
+
+        self.should_refresh = true;
 
         Ok(())
     }
@@ -271,6 +299,7 @@ impl<'a> LoginManager<'a> {
                     Mode::EditingPassword => password.push(v as char),
                 },
             }
+            self.refresh();
         }
     }
 }
@@ -292,17 +321,12 @@ fn main() {
     let greetd = greetd::GreetD::new();
     let args = Opts::from_args();
 
-    let mut lm = LoginManager::new(
-        &mut framebuffer.frame,
-        (w, h),
-        (1024, 128),
-        greetd,
-        args.target,
-    );
+    let mut lm = LoginManager::new(&mut framebuffer, (w, h), (1024, 128), greetd, args.target);
 
     lm.clear();
     lm.draw_bg(&color::Color::new(0.75, 0.75, 0.75, 1.0))
         .expect("unable to draw background");
+    lm.refresh();
 
     lm.greeter_loop();
     let _ = Framebuffer::set_kd_mode(KdMode::Text).expect("unable to leave graphics mode");
