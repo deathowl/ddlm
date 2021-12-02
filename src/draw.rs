@@ -33,7 +33,7 @@ struct CachedGlyph {
 }
 
 impl CachedGlyph {
-    fn new(font: &RustFont, size: f32, ch: char) -> CachedGlyph {
+    fn new(font: &RustFont<'_>, size: f32, ch: char) -> CachedGlyph {
         let scale = Scale::uniform(size);
         let v_metrics = font.v_metrics(scale);
         let glyph = font
@@ -67,7 +67,7 @@ impl CachedGlyph {
         }
     }
 
-    fn draw(&self, buf: &mut Buffer, pos: (i32, i32), bg: &Color, c: &Color) {
+    fn draw(&self, buf: &mut Buffer<'_>, pos: (i32, i32), bg: &Color, c: &Color) {
         let mut x = 0;
         let mut y = 0;
         for v in &self.render {
@@ -96,7 +96,7 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn new(font: &'static RustFont, size: f32) -> Font {
+    pub fn new(font: &'static RustFont<'_>, size: f32) -> Font {
         Font {
             glyphs: HashMap::new(),
             font,
@@ -115,7 +115,7 @@ impl Font {
 
     pub fn draw_text(
         &self,
-        buf: &mut Buffer,
+        buf: &mut Buffer<'_>,
         bg: &Color,
         c: &Color,
         s: &str,
@@ -143,7 +143,7 @@ impl Font {
 
     pub fn auto_draw_text(
         &mut self,
-        buf: &mut Buffer,
+        buf: &mut Buffer<'_>,
         bg: &Color,
         c: &Color,
         s: &str,
@@ -153,7 +153,7 @@ impl Font {
     }
 }
 
-pub fn draw_box(buf: &mut Buffer, c: &Color, dim: (u32, u32)) -> Result<(), BufferError> {
+pub fn draw_box(buf: &mut Buffer<'_>, c: &Color, dim: (u32, u32)) -> Result<(), BufferError> {
     for x in 0..dim.0 {
         let _ = buf.put((x, 0), c);
         let _ = buf.put((x, dim.1 - 1), c);

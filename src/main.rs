@@ -1,8 +1,4 @@
-#![allow(unused)]
-
-extern crate framebuffer;
-extern crate hostname;
-extern crate osstrtools;
+#![deny(rust_2018_idioms)]
 
 use std::io::Read;
 
@@ -70,8 +66,8 @@ impl<'a> LoginManager<'a> {
         dimensions: (u32, u32),
         greetd: greetd::GreetD,
         target: std::path::PathBuf,
-    ) -> LoginManager {
-        LoginManager {
+    ) -> Self {
+        Self {
             buf: &mut fb.frame,
             device: &fb.device,
             headline_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 72.0),
@@ -321,8 +317,6 @@ fn main() {
 
     let w = framebuffer.var_screen_info.xres;
     let h = framebuffer.var_screen_info.yres;
-    let line_length = framebuffer.fix_screen_info.line_length;
-    let bytespp = framebuffer.var_screen_info.bits_per_pixel / 8;
 
     let raw = std::io::stdout()
         .into_raw_mode()
