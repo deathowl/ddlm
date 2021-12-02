@@ -94,7 +94,7 @@ impl<'a> LoginManager<'a> {
 
     fn clear(&mut self) {
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
-        let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
+        let bg = color::Color::BLACK;
         buf.memset(&bg);
         self.should_refresh = true;
     }
@@ -110,13 +110,13 @@ impl<'a> LoginManager<'a> {
         let (x, y) = self.offset();
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut _buf = buf.subdimensions((x, y, self.dimensions.0, self.dimensions.1))?;
-        let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
+        let bg = color::Color::BLACK;
         draw::draw_box(&mut _buf, color, (self.dimensions.0, self.dimensions.1))?;
 
         self.headline_font.auto_draw_text(
             &mut buf.offset(((self.screen_size.0 / 2) - 300, 32))?,
             &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
+            &color::Color::WHITE,
             &format!("Welcome to {}", hostname::get()?.to_str().unwrap()),
         )?;
 
@@ -125,7 +125,7 @@ impl<'a> LoginManager<'a> {
                 .subdimensions((x, y, self.dimensions.0, self.dimensions.1))?
                 .offset((32, 24))?,
             &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
+            &color::Color::WHITE,
             "Login",
         )?;
 
@@ -134,7 +134,7 @@ impl<'a> LoginManager<'a> {
                 .subdimensions((x, y, self.dimensions.0, self.dimensions.1))?
                 .offset((256, 24))?,
             &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
+            &color::Color::WHITE,
             "username:",
         )?;
 
@@ -144,7 +144,7 @@ impl<'a> LoginManager<'a> {
                 .offset((256, 64))
                 .unwrap(),
             &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
+            &color::Color::WHITE,
             "password:",
         )?;
 
@@ -160,17 +160,13 @@ impl<'a> LoginManager<'a> {
 
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut buf = buf.subdimensions((x, y, dim.0, dim.1))?;
-        let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
+        let bg = color::Color::BLACK;
         if redraw {
             buf.memset(&bg);
         }
 
-        self.prompt_font.auto_draw_text(
-            &mut buf,
-            &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
-            username,
-        )?;
+        self.prompt_font
+            .auto_draw_text(&mut buf, &bg, &color::Color::WHITE, username)?;
 
         self.should_refresh = true;
 
@@ -184,7 +180,7 @@ impl<'a> LoginManager<'a> {
 
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut buf = buf.subdimensions((x, y, dim.0, dim.1))?;
-        let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
+        let bg = color::Color::BLACK;
         if redraw {
             buf.memset(&bg);
         }
@@ -194,12 +190,8 @@ impl<'a> LoginManager<'a> {
             stars += "*";
         }
 
-        self.prompt_font.auto_draw_text(
-            &mut buf,
-            &bg,
-            &color::Color::new(1.0, 1.0, 1.0, 1.0),
-            &stars,
-        )?;
+        self.prompt_font
+            .auto_draw_text(&mut buf, &bg, &color::Color::WHITE, &stars)?;
 
         self.should_refresh = true;
 
