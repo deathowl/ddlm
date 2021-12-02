@@ -41,7 +41,7 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    pub fn subdimensions<'b>(&'b mut self, subdimensions: Rect) -> Result<Buffer<'b>, BufferError> {
+    pub fn subdimensions(&mut self, subdimensions: Rect) -> Result<Buffer<'_>, BufferError> {
         let bounds = self.get_bounds();
         if subdimensions.0 + subdimensions.2 >= bounds.2
             || subdimensions.1 + subdimensions.3 >= bounds.3
@@ -64,7 +64,7 @@ impl<'a> Buffer<'a> {
         })
     }
 
-    pub fn offset<'b>(&'b mut self, offset: Vect) -> Result<Buffer<'b>, BufferError> {
+    pub fn offset(&mut self, offset: Vect) -> Result<Buffer<'_>, BufferError> {
         let bounds = self.get_bounds();
         if offset.0 > bounds.2 || offset.1 > bounds.3 {
             return Err(BufferError::OffsetOutOfBounds { offset, bounds });
