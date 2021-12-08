@@ -6,22 +6,23 @@ extern crate osstrtools;
 
 use std::io::Read;
 
-
-use framebuffer::{Framebuffer, KdMode};
+use framebuffer::{Framebuffer, KdMode, VarScreeninfo};
 use structopt::StructOpt;
 use termion::raw::IntoRawMode;
 
 const USERNAME_CAP: usize = 64;
 const PASSWORD_CAP: usize = 64;
 
+// from linux/fb.h
+const FB_ACTIVATE_NOW: u32 = 0;
+const FB_ACTIVATE_FORCE: u32 = 128;
+
 mod buffer;
 mod color;
 mod draw;
 mod greetd;
 
-
-#[derive(StructOpt)]
-#[derive(Debug)]
+#[derive(StructOpt, Debug)]
 struct Opts {
     // The path to the file to read
     #[structopt(short, long, parse(from_os_str))]
@@ -35,6 +36,7 @@ enum Mode {
 
 struct LoginManager<'a> {
     buf: &'a mut memmap::MmapMut,
+    device: &'a std::fs::File,
 
     headline_font: draw::Font,
     prompt_font: draw::Font,
@@ -43,33 +45,50 @@ struct LoginManager<'a> {
     dimensions: (u32, u32),
     mode: Mode,
     greetd: greetd::GreetD,
-    target: String
+    target: String,
+
+    var_screen_info: &'a VarScreeninfo,
+    should_refresh: bool,
 }
 
 impl<'a> LoginManager<'a> {
     fn new(
-        buf: &mut memmap::MmapMut,
+        fb: &'a mut Framebuffer,
         screen_size: (u32, u32),
         dimensions: (u32, u32),
         greetd: greetd::GreetD,
-        target: std::path::PathBuf
+        target: std::path::PathBuf,
     ) -> LoginManager {
         LoginManager {
-            buf: buf,
+            buf: &mut fb.frame,
+            device: &fb.device,
             headline_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 72.0),
             prompt_font: draw::Font::new(&draw::DEJAVUSANS_MONO, 32.0),
             screen_size,
             dimensions,
             mode: Mode::EditingUsername,
-            greetd: greetd,
-            target:target.into_os_string().into_string().unwrap(),
+            greetd,
+            target: target.into_os_string().into_string().unwrap(),
+            var_screen_info: &fb.var_screen_info,
+            should_refresh: false,
+        }
+    }
+
+    fn refresh(&mut self) {
+        if self.should_refresh {
+            self.should_refresh = false;
+            let mut screeninfo = self.var_screen_info.clone();
+            screeninfo.activate |= FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
+            Framebuffer::put_var_screeninfo(self.device, &screeninfo)
+                .expect("Failed to refresh framebuffer");
         }
     }
 
     fn clear(&mut self) {
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
-        buf.memset(&bg)
+        buf.memset(&bg);
+        self.should_refresh = true;
     }
 
     fn offset(&self) -> (u32, u32) {
@@ -84,7 +103,7 @@ impl<'a> LoginManager<'a> {
         let mut buf = buffer::Buffer::new(self.buf, self.screen_size);
         let mut _buf = buf.subdimensions((x, y, self.dimensions.0, self.dimensions.1))?;
         let bg = color::Color::new(0.0, 0.0, 0.0, 0.0);
-        draw::draw_box(&mut _buf, &color, (self.dimensions.0, self.dimensions.1))?;
+        draw::draw_box(&mut _buf, color, (self.dimensions.0, self.dimensions.1))?;
 
         self.headline_font.auto_draw_text(
             &mut buf.offset(((self.screen_size.0 / 2) - 300, 32))?,
@@ -121,6 +140,8 @@ impl<'a> LoginManager<'a> {
             "password:",
         )?;
 
+        self.should_refresh = true;
+
         Ok(())
     }
 
@@ -140,8 +161,10 @@ impl<'a> LoginManager<'a> {
             &mut buf,
             &bg,
             &color::Color::new(1.0, 1.0, 1.0, 1.0),
-            &format!("{}", username),
+            username,
         )?;
+
+        self.should_refresh = true;
 
         Ok(())
     }
@@ -170,6 +193,8 @@ impl<'a> LoginManager<'a> {
             &stars,
         )?;
 
+        self.should_refresh = true;
+
         Ok(())
     }
     fn greeter_loop(&mut self) {
@@ -194,11 +219,11 @@ impl<'a> LoginManager<'a> {
             let stdin = std::io::stdin();
             let mut stdin = stdin.lock();
             let mut b = [0x00];
-            if let Err(_) = stdin.read_exact(&mut b) {
+            if stdin.read_exact(&mut b).is_err() {
                 let _ =
                     Framebuffer::set_kd_mode(KdMode::Text).expect("unable to leave graphics mode");
-                username.truncate(0);
-                password.truncate(0);
+                username.clear();
+                password.clear();
                 std::process::exit(1);
             }
 
@@ -211,27 +236,23 @@ impl<'a> LoginManager<'a> {
             match b[0] as char {
                 '\x15' | '\x0B' => match self.mode {
                     // ctrl-k/ctrl-u
-                    Mode::EditingUsername => username.truncate(0),
-                    Mode::EditingPassword => password.truncate(0),
+                    Mode::EditingUsername => username.clear(),
+                    Mode::EditingPassword => password.clear(),
                 },
                 '\x03' | '\x04' => {
                     // ctrl-c/ctrl-D
-                    username.truncate(0);
-                    password.truncate(0);
+                    username.clear();
+                    password.clear();
                     self.greetd.cancel();
-                    return
+                    return;
                 }
                 '\x7F' => match self.mode {
                     // backspace
                     Mode::EditingUsername => {
-                        if username.len() > 0 {
-                            username.truncate(username.len() - 1);
-                        }
+                        username.pop();
                     }
                     Mode::EditingPassword => {
-                        if password.len() > 0 {
-                            password.truncate(password.len() - 1);
-                        }
+                        password.pop();
                     }
                 },
                 '\t' => match self.mode {
@@ -244,22 +265,20 @@ impl<'a> LoginManager<'a> {
                 },
                 '\r' => match self.mode {
                     Mode::EditingUsername => {
-                        if username.len() > 0 {
+                        if !username.is_empty() {
                             self.mode = Mode::EditingPassword;
                         }
                     }
                     Mode::EditingPassword => {
-                        if password.len() == 0 {
-                            username.truncate(0);
+                        if password.is_empty() {
+                            username.clear();
                             self.mode = Mode::EditingUsername;
                         } else {
                             self.draw_bg(&color::Color::new(0.75, 0.75, 0.25, 1.0))
                                 .expect("unable to draw background");
-                            let res = self.greetd.login(
-                                username,
-                                password,
-                                vec![self.target.clone()],
-                            );
+                            let res =
+                                self.greetd
+                                    .login(username, password, vec![self.target.clone()]);
                             username = String::with_capacity(USERNAME_CAP);
                             password = String::with_capacity(PASSWORD_CAP);
                             match res {
@@ -280,6 +299,7 @@ impl<'a> LoginManager<'a> {
                     Mode::EditingPassword => password.push(v as char),
                 },
             }
+            self.refresh();
         }
     }
 }
@@ -301,11 +321,12 @@ fn main() {
     let greetd = greetd::GreetD::new();
     let args = Opts::from_args();
 
-    let mut lm = LoginManager::new(&mut framebuffer.frame, (w, h), (1024, 128), greetd, args.target);
+    let mut lm = LoginManager::new(&mut framebuffer, (w, h), (1024, 128), greetd, args.target);
 
     lm.clear();
     lm.draw_bg(&color::Color::new(0.75, 0.75, 0.75, 1.0))
         .expect("unable to draw background");
+    lm.refresh();
 
     lm.greeter_loop();
     let _ = Framebuffer::set_kd_mode(KdMode::Text).expect("unable to leave graphics mode");
