@@ -6,30 +6,21 @@ pub struct Color {
     opacity: f32,
 }
 
-impl Color {
-    pub const BLACK: Self = Self {
-        red: 0.0,
-        green: 0.0,
-        blue: 0.0,
+const fn rgb(red: f32, green: f32, blue: f32) -> Color {
+    Color {
+        red,
+        green,
+        blue,
         opacity: 1.0,
-    };
-
-    pub const WHITE: Self = Self {
-        red: 1.0,
-        green: 1.0,
-        blue: 1.0,
-        opacity: 1.0,
-    };
-
-    pub fn new(red: f32, green: f32, blue: f32, opacity: f32) -> Self {
-        let [red, green, blue, opacity] = [red, green, blue, opacity].map(|x| x.clamp(0.0, 1.0));
-        Self {
-            red,
-            green,
-            blue,
-            opacity,
-        }
     }
+}
+
+impl Color {
+    pub const BLACK: Self = rgb(0.0, 0.0, 0.0);
+    pub const GRAY: Self = rgb(0.75, 0.75, 0.75);
+    pub const WHITE: Self = rgb(1.0, 1.0, 1.0);
+    pub const RED: Self = rgb(0.75, 0.25, 0.25);
+    pub const YELLOW: Self = rgb(0.75, 0.75, 0.25);
 
     pub fn blend(&self, other: &Color, ratio: f32) -> Self {
         let ratio = ratio.clamp(0.0, 1.0);

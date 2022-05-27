@@ -21,5 +21,7 @@ greetd_ipc = { version = "0.6.0", features = ["sync-codec"] }
 getopts = "0.2.21"
 hostname = "0.3.1"
 osstrtools = "0.2.2"
-structopt = { version = "0.3", default-features = false }
 thiserror = "1.0.30"
+freedesktop-desktop-entry = "0.5.0"
+shell-words = "1.1.0"
+
