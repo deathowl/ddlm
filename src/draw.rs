@@ -1,10 +1,11 @@
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, BufferError};
 use crate::color::Color;
 
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 use rusttype::{point, Font as RustFont, Scale};
+use thiserror::Error;
 
 pub static DEJAVUSANS_MONO_FONT_DATA: &[u8] = include_bytes!("../fonts/dejavu/DejaVuSansMono.ttf");
 pub static ROBOTO_REGULAR_FONT_DATA: &[u8] = include_bytes!("../fonts/Roboto-Regular.ttf");
@@ -18,6 +19,13 @@ lazy_static! {
             .expect("error constructing Roboto-Regular");
 }
 
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum DrawError {
+    #[error("glyph for {0} not in cache")]
+    GlyphNotInCache(char),
+}
+
 struct CachedGlyph {
     dimensions: (u32, u32),
     origin: (i32, i32),
@@ -25,7 +33,7 @@ struct CachedGlyph {
 }
 
 impl CachedGlyph {
-    fn new(font: &RustFont, size: f32, ch: char) -> CachedGlyph {
+    fn new(font: &RustFont<'_>, size: f32, ch: char) -> CachedGlyph {
         let scale = Scale::uniform(size);
         let v_metrics = font.v_metrics(scale);
         let glyph = font
@@ -59,7 +67,7 @@ impl CachedGlyph {
         }
     }
 
-    fn draw(&self, buf: &mut Buffer, pos: (i32, i32), bg: &Color, c: &Color) {
+    fn draw(&self, buf: &mut Buffer<'_>, pos: (i32, i32), bg: &Color, c: &Color) {
         let mut x = 0;
         let mut y = 0;
         for v in &self.render {
@@ -88,7 +96,7 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn new(font: &'static RustFont, size: f32) -> Font {
+    pub fn new(font: &'static RustFont<'_>, size: f32) -> Font {
         Font {
             glyphs: HashMap::new(),
             font,
@@ -107,23 +115,18 @@ impl Font {
 
     pub fn draw_text(
         &self,
-        buf: &mut Buffer,
+        buf: &mut Buffer<'_>,
         bg: &Color,
         c: &Color,
         s: &str,
-    ) -> Result<(u32, u32), ::std::io::Error> {
+    ) -> Result<(u32, u32), DrawError> {
         let mut x_off = 0;
         let mut off = 0;
         let mut glyphs = Vec::with_capacity(s.len());
         for ch in s.chars() {
             let glyph = match self.glyphs.get(&ch) {
                 Some(glyph) => glyph,
-                None => {
-                    return Err(::std::io::Error::new(
-                        ::std::io::ErrorKind::Other,
-                        format!("glyph for {:} not in cache", ch),
-                    ))
-                }
+                None => return Err(DrawError::GlyphNotInCache(ch)),
             };
             glyphs.push(glyph);
             if glyph.origin.1 < off {
@@ -140,17 +143,17 @@ impl Font {
 
     pub fn auto_draw_text(
         &mut self,
-        buf: &mut Buffer,
+        buf: &mut Buffer<'_>,
         bg: &Color,
         c: &Color,
         s: &str,
-    ) -> Result<(u32, u32), ::std::io::Error> {
+    ) -> Result<(u32, u32), DrawError> {
         self.add_str_to_cache(s);
         self.draw_text(buf, bg, c, s)
     }
 }
 
-pub fn draw_box(buf: &mut Buffer, c: &Color, dim: (u32, u32)) -> Result<(), ::std::io::Error> {
+pub fn draw_box(buf: &mut Buffer<'_>, c: &Color, dim: (u32, u32)) -> Result<(), BufferError> {
     for x in 0..dim.0 {
         let _ = buf.put((x, 0), c);
         let _ = buf.put((x, dim.1 - 1), c);
